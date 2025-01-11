@@ -1,0 +1,76 @@
+from flask import Flask, render_template, request, jsonify
+from nepali_datetime import date
+import sqlite3
+
+app = Flask(__name__)
+
+# Initialize the database
+def init_db():
+    conn = sqlite3.connect('billing.db')
+    cursor = conn.cursor()
+
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS students (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL,
+            class TEXT NOT NULL,
+            roll_number TEXT NOT NULL
+        )
+    ''')
+
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS transactions (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            student_id INTEGER NOT NULL,
+            amount REAL NOT NULL,
+            date TEXT NOT NULL,
+            description TEXT,
+            FOREIGN KEY (student_id) REFERENCES students (id)
+        )
+    ''')
+
+    conn.commit()
+    conn.close()
+
+@app.route('/')
+def index():
+    nepali_date = str(date.today())
+    return render_template('index.html', nepali_date=nepali_date)
+
+@app.route('/generate_bill', methods=['POST'])
+def generate_bill():
+    data = request.json
+    name = data.get('name')
+    student_class = data.get('class')
+    roll_number = data.get('roll_number')
+    amount = data.get('amount')
+    description = data.get('description')
+
+    if not all([name, student_class, roll_number, amount]):
+        return jsonify({'error': 'All fields are required'}), 400
+
+    conn = sqlite3.connect('billing.db')
+    cursor = conn.cursor()
+
+    cursor.execute('SELECT id FROM students WHERE name=? AND class=? AND roll_number=?',
+                   (name, student_class, roll_number))
+    student = cursor.fetchone()
+
+    if not student:
+        cursor.execute('INSERT INTO students (name, class, roll_number) VALUES (?, ?, ?)',
+                       (name, student_class, roll_number))
+        student_id = cursor.lastrowid
+    else:
+        student_id = student[0]
+
+    nepali_date = str(date.today())
+    cursor.execute('INSERT INTO transactions (student_id, amount, date, description) VALUES (?, ?, ?, ?)',
+                   (student_id, amount, nepali_date, description))
+    conn.commit()
+    conn.close()
+
+    return jsonify({'message': 'Bill generated successfully'})
+
+if __name__ == '__main__':
+    init_db()
+    app.run(debug=True)
