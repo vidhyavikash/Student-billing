@@ -1,0 +1,12 @@
+project/
+├── static/
+│   ├── css/
+│   │   └── styles.css
+│   ├── js/
+│   │   └── scripts.js
+│   └── bootstrap/
+│       └── bootstrap.min.css
+├── templates/
+│   └── index.html
+├── app.py
+└── requirements.txt
