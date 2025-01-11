@@ -1,0 +1,131 @@
+import tkinter as tk
+from tkinter import messagebox
+from nepali_datetime import date
+import sqlite3
+
+# Initialize Database
+def initialize_db():
+    conn = sqlite3.connect("student_billing.db")
+    cursor = conn.cursor()
+    
+    # Create Students Table
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS students (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL,
+            class TEXT NOT NULL,
+            roll_number TEXT NOT NULL
+        )
+    """)
+
+    # Create Transactions Table
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS transactions (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            student_id INTEGER NOT NULL,
+            amount REAL NOT NULL,
+            date TEXT NOT NULL,
+            description TEXT,
+            FOREIGN KEY (student_id) REFERENCES students (id)
+        )
+    """)
+
+    conn.commit()
+    conn.close()
+
+# Add Nepali Date Functionality
+def get_nepali_date():
+    return str(date.today())
+
+# Main Application Class
+class BillingApp:
+    def __init__(self, root):
+        self.root = root
+        self.root.title("School Billing System")
+
+        # Student Info
+        tk.Label(root, text="Student Name:").grid(row=0, column=0, padx=10, pady=5)
+        self.student_name = tk.Entry(root)
+        self.student_name.grid(row=0, column=1, padx=10, pady=5)
+
+        tk.Label(root, text="Class:").grid(row=1, column=0, padx=10, pady=5)
+        self.student_class = tk.Entry(root)
+        self.student_class.grid(row=1, column=1, padx=10, pady=5)
+
+        tk.Label(root, text="Roll Number:").grid(row=2, column=0, padx=10, pady=5)
+        self.student_roll = tk.Entry(root)
+        self.student_roll.grid(row=2, column=1, padx=10, pady=5)
+
+        # Bill Info
+        tk.Label(root, text="Amount (NPR):").grid(row=3, column=0, padx=10, pady=5)
+        self.amount = tk.Entry(root)
+        self.amount.grid(row=3, column=1, padx=10, pady=5)
+
+        tk.Label(root, text="Description:").grid(row=4, column=0, padx=10, pady=5)
+        self.description = tk.Entry(root)
+        self.description.grid(row=4, column=1, padx=10, pady=5)
+
+        # Generate Bill Button
+        self.generate_bill_btn = tk.Button(root, text="Generate Bill", command=self.generate_bill)
+        self.generate_bill_btn.grid(row=5, column=0, columnspan=2, pady=10)
+
+        # Display Nepali Date
+        self.date_label = tk.Label(root, text=f"Nepali Date: {get_nepali_date()}", font=("Arial", 12))
+        self.date_label.grid(row=6, column=0, columnspan=2, pady=10)
+
+    def generate_bill(self):
+        name = self.student_name.get()
+        student_class = self.student_class.get()
+        roll = self.student_roll.get()
+        amount = self.amount.get()
+        description = self.description.get()
+
+        if not (name and student_class and roll and amount):
+            messagebox.showerror("Error", "Please fill all fields!")
+            return
+
+        try:
+            amount = float(amount)
+        except ValueError:
+            messagebox.showerror("Error", "Invalid amount!")
+            return
+
+        nepali_date = get_nepali_date()
+
+        # Save to database
+        conn = sqlite3.connect("student_billing.db")
+        cursor = conn.cursor()
+
+        # Check if student exists
+        cursor.execute("SELECT id FROM students WHERE name=? AND class=? AND roll_number=?", (name, student_class, roll))
+        student = cursor.fetchone()
+
+        if not student:
+            cursor.execute("INSERT INTO students (name, class, roll_number) VALUES (?, ?, ?)", (name, student_class, roll))
+            student_id = cursor.lastrowid
+        else:
+            student_id = student[0]
+
+        # Insert transaction
+        cursor.execute("INSERT INTO transactions (student_id, amount, date, description) VALUES (?, ?, ?, ?)",
+                       (student_id, amount, nepali_date, description))
+
+        conn.commit()
+        conn.close()
+
+        messagebox.showinfo("Success", "Bill generated successfully!")
+        self.clear_fields()
+
+    def clear_fields(self):
+        self.student_name.delete(0, tk.END)
+        self.student_class.delete(0, tk.END)
+        self.student_roll.delete(0, tk.END)
+        self.amount.delete(0, tk.END)
+        self.description.delete(0, tk.END)
+
+# Initialize Application
+if __name__ == "__main__":
+    initialize_db()
+    root = tk.Tk()
+    app = BillingApp(root)
+    root.mainloop()
